@@ -1,0 +1,150 @@
+# ============================================================
+# dwell-build: GitHub Actions 自动构建并推送 ghcr.io 镜像
+# 触发：
+#   1) push tag v*        —— 自动构建 backend + frontend(占位域名) 并推送
+#   2) workflow_dispatch  —— 手动构建（二次构建注入正式域名 / 构建数据初始化镜像）
+# 前置：
+#   - 源码仓库根目录须含 backend/、frontend/ 与 deploy_sealos/ 目录
+#   - 仓库为 public（或手动将 ghcr 包设为 public），Sealos 才能免凭据拉取
+#   - 无需额外 Secret：推送用内置 GITHUB_TOKEN
+# 正式域名注入（二选一）：
+#   A. 仓库 Settings→Secrets and variables→Actions→Variables 设
+#      FRONTEND_NEXT_PUBLIC_API_URL=https://<正式域名>，再打新 tag v1.x.y
+#   B. 手动运行本 workflow，填 next_public_api_url 输入
+# ============================================================
+name: dwell-build
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: "镜像 tag（留空自动用 manual-时间戳）"
+        required: false
+        default: ""
+      next_public_api_url:
+        description: "前端正式公网域名（如 https://xxx.sealos.run），二次构建注入 NEXT_PUBLIC_API_URL"
+        required: false
+        default: ""
+      build_data_init:
+        description: "同时构建数据初始化镜像（需 deploy_sealos/data/payload.zip 已提交到仓库）"
+        type: boolean
+        default: false
+
+jobs:
+  build-images:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 计算镜像 tag 与仓库前缀
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            TAG="${{ github.ref_name }}"
+          else
+            TAG="${{ inputs.tag_name }}"
+            [ -z "$TAG" ] && TAG="manual-$(date +%Y%m%d%H%M%S)"
+          fi
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          OWNER_LOWER="$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')"
+          echo "IMAGE_PREFIX=ghcr.io/${OWNER_LOWER}" >> "$GITHUB_ENV"
+
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - name: 登录 GHCR（内置 Token，无需额外 Secret）
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 构建并推送 dwell-backend
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy_sealos/backend/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ env.IMAGE_PREFIX }}/dwell-backend:${{ steps.tag.outputs.tag }}
+
+      - name: 构建并推送 dwell-frontend
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy_sealos/frontend/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ env.IMAGE_PREFIX }}/dwell-frontend:${{ steps.tag.outputs.tag }}
+          build-args: |
+            NEXT_PUBLIC_API_URL=${{ inputs.next_public_api_url || vars.FRONTEND_NEXT_PUBLIC_API_URL || 'https://dwell-placeholder.invalid' }}
+            BACKEND_URL=${{ vars.FRONTEND_BACKEND_URL || 'http://dwell-backend:8000' }}
+
+      - name: 输出镜像清单
+        run: |
+          echo "## 镜像已推送（Sealos 应用管理直接填写，公共包免凭据）" >> "$GITHUB_STEP_SUMMARY"
+          echo "- backend: \`${IMAGE_PREFIX}/dwell-backend:${{ steps.tag.outputs.tag }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- frontend: \`${IMAGE_PREFIX}/dwell-frontend:${{ steps.tag.outputs.tag }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "> 注意：若本次未注入正式域名，frontend 内 NEXT_PUBLIC_API_URL 为占位值，"
+          echo "> 拿到 Sealos 分配域名后需按上文"正式域名注入"方式二次构建。" >> "$GITHUB_STEP_SUMMARY"
+
+  build-data-init:
+    if: github.event_name == 'workflow_dispatch' && inputs.build_data_init
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 检查 payload.zip 是否存在
+        id: check
+        run: |
+          if [ -f deploy_sealos/data/payload.zip ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: 缺少 payload.zip 则中止
+        if: steps.check.outputs.exists == 'false'
+        run: |
+          echo "::error::deploy_sealos/data/payload.zip 不存在。请先本地执行 prepare_upload.ps1 生成 payload.zip 并提交到仓库，再运行本 workflow。"
+          exit 1
+
+      - name: 计算 tag
+        id: tag
+        run: |
+          TAG="${{ inputs.tag_name }}"
+          [ -z "$TAG" ] && TAG="manual-$(date +%Y%m%d%H%M%S)"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          OWNER_LOWER="$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')"
+          echo "IMAGE_PREFIX=ghcr.io/${OWNER_LOWER}" >> "$GITHUB_ENV"
+
+      - uses: docker/setup-buildx-action@v3
+      - name: 登录 GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 构建并推送 dwell-data-init
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy_sealos/data/init-data.Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ${{ env.IMAGE_PREFIX }}/dwell-data-init:${{ steps.tag.outputs.tag }}
+
+      - name: 输出镜像清单
+        run: |
+          echo "## data-init 镜像已推送" >> "$GITHUB_STEP_SUMMARY"
+          echo "- data-init: \`${IMAGE_PREFIX}/dwell-data-init:${{ steps.tag.outputs.tag }}\`" >> "$GITHUB_STEP_SUMMARY"
