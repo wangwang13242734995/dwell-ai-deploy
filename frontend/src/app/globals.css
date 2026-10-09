@@ -1,0 +1,190 @@
+@import "tailwindcss";
+
+:root {
+  /* Minimalist Luxury Theme (VivaDecor) */
+  --color-background: #ffffff;
+  --color-foreground: #1a1a1a;
+  --color-card: #ffffff;
+  --color-card-border: #e5e5e5;
+
+  /* Accents */
+  --color-accent: #C4A484;
+  /* Beige/Gold */
+  --color-accent-hover: #b08d6f;
+
+  /* Object indicator colors (Muted/Earthy) */
+  --color-bed: #f0ebe6;
+  --color-bed-text: #5d4037;
+  --color-sofa: #ebe6f0;
+  --color-sofa-text: #4a375d;
+  --color-object-default: #f5f5f5;
+  --color-object-text: #666666;
+
+  /* Bounding box colors */
+  --color-bbox-primary: #C4A484;
+  --color-bbox-secondary: #8c8c8c;
+  --color-bbox-selected: #1a1a1a;
+
+  /* UI colors */
+  --color-border: #e5e5e5;
+  --color-text-muted: #666666;
+  --color-text-light: #888888;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+html {
+  color-scheme: light;
+}
+
+body {
+  background: var(--color-background);
+  color: var(--color-foreground);
+  font-family: var(--font-sans), 'Segoe UI', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Custom scrollbar - minimal */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #e5e5e5;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #cccccc;
+}
+
+/* Konva canvas styling */
+.konvajs-content {
+  border-radius: 0;
+  border: 1px solid var(--color-border);
+}
+
+/* Card styling */
+.card {
+  background: var(--color-card);
+  border: 1px solid var(--color-card-border);
+  border-radius: 0;
+  box-shadow: none;
+}
+
+/* Typography Overrides */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  letter-spacing: -0.02em;
+}
+
+/* Serif font for headings */
+.font-serif {
+  font-family: 'Georgia', 'Playfair Display', serif;
+}
+
+/* Object indicator pill */
+.object-pill {
+  padding: 0.5rem 0.75rem;
+  border-radius: 0;
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.object-pill-bed {
+  background: var(--color-bed);
+  color: var(--color-bed-text);
+}
+
+.object-pill-sofa {
+  background: var(--color-sofa);
+  color: var(--color-sofa-text);
+}
+
+.object-pill-default {
+  background: var(--color-object-default);
+  color: var(--color-object-text);
+}
+
+/* Smooth transitions */
+.transition-smooth {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Floor plan container */
+.floor-plan-container {
+  background: #f9f9f9;
+  border: 1px solid var(--color-border);
+  border-radius: 0;
+  overflow: hidden;
+}
+
+/* Primary Button (Black) */
+.btn-primary {
+  background: #1a1a1a;
+  color: white;
+  padding: 0.875rem 2rem;
+  border-radius: 9999px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  transition: all 0.2s ease;
+}
+
+.btn-primary:hover {
+  background: #000000;
+  transform: translateY(-1px);
+}
+
+.btn-primary:disabled {
+  background: #cccccc;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* SCANNING ANIMATION */
+@keyframes scan-vertical {
+  0% {
+    top: 0%;
+    opacity: 0;
+  }
+
+  15% {
+    opacity: 1;
+  }
+
+  85% {
+    opacity: 1;
+  }
+
+  100% {
+    top: 100%;
+    opacity: 0;
+  }
+}
+
+.animate-scan {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: white;
+  box-shadow: 0 0 10px 2px rgba(255, 255, 255, 0.5);
+  animation: scan-vertical 2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  z-index: 10;
+}
