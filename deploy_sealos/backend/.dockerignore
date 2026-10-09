@@ -1,0 +1,15 @@
+# 后端构建上下文忽略：数据与静态图由 PVC 挂载，不入镜像
+data/
+static/
+scripts/
+tests/
+__pycache__/
+*.pyc
+.env
+.env.*
+!.env.example
+*.db
+*.sqlite3
+.git/
+Dockerfile
+.dockerignore
