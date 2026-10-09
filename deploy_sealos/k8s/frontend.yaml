@@ -1,0 +1,63 @@
+# ============================================================
+# Sealos 前端应用清单（frontend.yaml）
+# 用法：
+#   kubectl apply -f deploy_sealos/k8s/frontend.yaml
+# 注意：
+#   - namespace 以实际 Sealos 工作空间为准，替换 <NAMESPACE>
+#   - NEXT_PUBLIC_API_URL 已在构建期注入，运行时无需再设
+#   - 公网 Ingress 由 Sealos 控制台「启用公网访问」自动创建
+# ============================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dwell-frontend
+  namespace: <NAMESPACE>
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dwell-frontend
+  template:
+    metadata:
+      labels:
+        app: dwell-frontend
+    spec:
+      containers:
+        - name: frontend
+          image: ghcr.io/<GH_USER>/dwell-frontend:v1.0.0-sealos
+          ports:
+            - containerPort: 3000
+              name: http
+          env:
+            - name: PORT
+              value: "3000"
+            - name: HOSTNAME
+              value: "0.0.0.0"
+            - name: NODE_ENV
+              value: "production"
+          resources:
+            requests:
+              cpu: "0.5"
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dwell-frontend
+  namespace: <NAMESPACE>
+spec:
+  selector:
+    app: dwell-frontend
+  ports:
+    - port: 3000
+      targetPort: 3000
+      name: http
