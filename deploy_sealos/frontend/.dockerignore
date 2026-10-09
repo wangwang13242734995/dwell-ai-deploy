@@ -1,0 +1,12 @@
+# 前端构建上下文忽略
+node_modules/
+.next/
+out/
+.git/
+.env
+.env.*
+!.env.example
+*.log
+Dockerfile
+.dockerignore
+npm-debug.*
