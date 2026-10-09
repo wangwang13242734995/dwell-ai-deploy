@@ -1,0 +1,121 @@
+# ============================================================
+# Sealos 后端应用清单（backend.yaml）
+# 用法：
+#   kubectl apply -f deploy_sealos/k8s/backend.yaml
+#   （或 Sealos CLI: sealos apply -f ...）
+# 注意：
+#   - namespace 以实际 Sealos 工作空间为准，替换 <NAMESPACE>
+#   - 公网 Ingress 由 Sealos 控制台「启用公网访问」自动创建
+#   - LLM_API_KEY 建议用 Secret 注入（SealedSecret / Sealos Secret）
+# ============================================================
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: dwell-data
+  namespace: <NAMESPACE>
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: dwell-static
+  namespace: <NAMESPACE>
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dwell-backend
+  namespace: <NAMESPACE>
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dwell-backend
+  template:
+    metadata:
+      labels:
+        app: dwell-backend
+    spec:
+      containers:
+        - name: backend
+          image: ghcr.io/<GH_USER>/dwell-backend:v1.0.0-sealos
+          ports:
+            - containerPort: 8000
+              name: http
+          env:
+            - name: DEBUG
+              value: "false"
+            - name: LOG_LEVEL
+              value: "INFO"
+            - name: SKU_DB_PATH
+              value: /app/backend/data/sku.db
+            # 国内模型配置（密钥建议改从 Secret 注入）
+            - name: LLM_PROVIDER
+              value: "<LLM_PROVIDER>"
+            - name: LLM_BASE_URL
+              value: "<LLM_BASE_URL>"
+            - name: LLM_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: dwell-secrets
+                  key: LLM_API_KEY
+                  optional: true
+            - name: LLM_MODEL
+              value: "<LLM_MODEL>"
+            - name: LLM_VISION_MODEL
+              value: "<LLM_VISION_MODEL>"
+            - name: LLM_IMAGE_MODEL
+              value: "<LLM_IMAGE_MODEL>"
+          volumeMounts:
+            - name: dwell-data
+              mountPath: /app/backend/data
+            - name: dwell-static
+              mountPath: /app/backend/static
+          resources:
+            requests:
+              cpu: "1"
+              memory: 1Gi
+            limits:
+              cpu: "2"
+              memory: 2Gi
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 20
+      volumes:
+        - name: dwell-data
+          persistentVolumeClaim:
+            claimName: dwell-data
+        - name: dwell-static
+          persistentVolumeClaim:
+            claimName: dwell-static
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dwell-backend
+  namespace: <NAMESPACE>
+spec:
+  selector:
+    app: dwell-backend
+  ports:
+    - port: 8000
+      targetPort: 8000
+      name: http
